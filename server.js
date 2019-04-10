@@ -13,6 +13,11 @@ const app         = express();
 const http        = require('http').Server(app);
 const sessionStore= new session.MemoryStore();
 
+const cors        = require('cors');
+const io          = require('socket.io')(http);
+const passportSocketIo  = require('passport.socketio');
+app.use(cors());
+
 
 fccTesting(app); //For FCC testing purposes
 
@@ -41,8 +46,34 @@ mongo.connect(process.env.DATABASE, (err, db) => {
 
   
     //start socket.io code  
-
+    var currentUsers = 0;
+    
+    // parse cookies for user info
+    io.use(passportSocketIo.authorize({
+      cookieParser: cookieParser,
+      key: 'express.sid',
+      secret: process.env.SESSION_SECRET,
+      store: sessionStore
+    }));
   
+    io.on('connection', socket => {
+      
+      ++currentUsers;
+      console.log('User ' + socket.request.user.name + ' connected');
+      io.emit('user', {name: socket.request.user.name, currentUsers, connected: true});
+      
+      socket.on('chat message', message => {
+        console.log('Chat message detected', message)
+        io.emit('chat message', {name: socket.request.user.name, message});
+      });
+      
+      socket.on('disconnect', ()=> {
+        currentUsers--;
+      });
+      
+    });
+  
+
 
     //end socket.io code
   
